@@ -1,9 +1,24 @@
 <%- include('../includes/head.ejs') %>
-    </head>
+</head>
 
-    <body>
-        <%- include('../includes/navigation.ejs') %>
-        <main>
-            <h1>Nothing there!</h1>
-        </main>
-        <%- include('../includes/end.ejs') %>
+<body>
+  <%- include('../includes/navigation.ejs') %>
+  <main>
+    <% if (orders.length <= 0) { %>
+      <h1>Nothing there!</h1>
+    <% } else { %>
+      <ul>
+        <% for (const o of orders) { %>
+          <li>
+            <h1># <%= o.id %></h1>
+            <ul>
+              <% for (const p of o.products) { %>
+                <li><%= p.title %> (<%= p.orderItem.quantity %>)</li>
+              <% } %>
+            </ul>
+          </li>
+        <% } %>
+      </ul>
+    <% } %>
+  </main>
+  <%- include('../includes/end.ejs') %>
