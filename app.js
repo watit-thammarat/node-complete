@@ -2,10 +2,10 @@ const path = require('path');
 
 const express = require('express');
 const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
 
 const rootDir = require('./util/path');
 const { get404 } = require('./controllers/error');
-const { mongoConnect } = require('./util/database');
 const User = require('./models/user');
 
 const adminRoutes = require('./routes/admin');
@@ -21,9 +21,9 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use((req, res, next) => {
-  User.findById('5bdae4bce2fe18c804bc87ec')
+  User.findById('5bdb13d360b79410106b9402')
     .then(user => {
-      req.user = new User(user.name, user.email, user.cart, user._id);
+      req.user = user;
       next();
     })
     .catch(err => {
@@ -39,6 +39,19 @@ app.use(get404);
 
 const PORT = 3000;
 
-mongoConnect(() => {
-  app.listen(PORT, () => console.log(`Server started at port ${PORT}`));
-});
+mongoose
+  .connect(
+    'mongodb+srv://tongnakub:abcd1234@cluster0-elfws.mongodb.net/shop?retryWrites=true'
+  )
+  // .then(() => {
+  //   const user = new User({
+  //     name: 'test',
+  //     email: 'test@test.com',
+  //     cart: { items: [] }
+  //   });
+  //   return user.save();
+  // })
+  .then(() => {
+    app.listen(PORT, () => console.log(`Server started at port ${PORT}`));
+  })
+  .catch(err => console.error(er));
