@@ -1,3 +1,5 @@
+const { validationResult } = require('express-validator/check');
+
 const Product = require('../models/product');
 
 exports.getAddProduct = (req, res, next) => {
@@ -5,7 +7,10 @@ exports.getAddProduct = (req, res, next) => {
     pageTitle: 'Add Product',
     path: '/admin/add-product',
     editing: false,
-    isAuthenticated: req.session.isLoggedIn
+    isAuthenticated: req.session.isLoggedIn,
+    hasError: false,
+    errorMessage: null,
+    errors: []
   });
 };
 
@@ -14,6 +19,19 @@ exports.postAddProduct = (req, res, next) => {
   const imageUrl = req.body.imageUrl;
   const price = req.body.price;
   const description = req.body.description;
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).render('admin/edit-product', {
+      pageTitle: 'Add Product',
+      path: '/admin/edit-product',
+      editing: false,
+      product: { title, imageUrl, price, description },
+      isAuthenticated: req.session.isLoggedIn,
+      hasError: true,
+      errorMessage: errors.array()[0].msg,
+      errors: errors.array()
+    });
+  }
   const product = new Product({
     title: title,
     price: price,
@@ -24,12 +42,22 @@ exports.postAddProduct = (req, res, next) => {
   product
     .save()
     .then(result => {
-      // console.log(result);
       console.log('Created Product');
       res.redirect('/admin/products');
     })
     .catch(err => {
-      console.log(err);
+      // res.redirect('/500');
+      // return res.status(500).render('admin/edit-product', {
+      //   pageTitle: 'Add Product',
+      //   path: '/admin/edit-product',
+      //   editing: false,
+      //   product: { title, imageUrl, price, description },
+      //   isAuthenticated: req.session.isLoggedIn,
+      //   hasError: true,
+      //   errorMessage: 'Database operation failed, please try again',
+      //   errors: []
+      // });
+      next(err);
     });
 };
 
@@ -49,10 +77,15 @@ exports.getEditProduct = (req, res, next) => {
         path: '/admin/edit-product',
         editing: editMode,
         product: product,
-        isAuthenticated: req.session.isLoggedIn
+        isAuthenticated: req.session.isLoggedIn,
+        hasError: false,
+        errorMessage: null,
+        errors: []
       });
     })
-    .catch(err => console.log(err));
+    .catch(err => {
+      next(err);
+    });
 };
 
 exports.postEditProduct = (req, res, next) => {
@@ -61,24 +94,47 @@ exports.postEditProduct = (req, res, next) => {
   const updatedPrice = req.body.price;
   const updatedImageUrl = req.body.imageUrl;
   const updatedDesc = req.body.description;
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).render('admin/edit-product', {
+      pageTitle: 'Edit Product',
+      path: '/admin/edit-product',
+      editing: true,
+      product: {
+        _id: prodId,
+        title: updatedTitle,
+        imageUrl: updatedImageUrl,
+        price: updatedPrice,
+        description: updatedDesc
+      },
+      isAuthenticated: req.session.isLoggedIn,
+      hasError: true,
+      errorMessage: errors.array()[0].msg,
+      errors: errors.array()
+    });
+  }
 
   Product.findById(prodId)
     .then(product => {
+      if (product.userId.toString() !== req.user._id.toString()) {
+        return res.redirect('/');
+      }
       product.title = updatedTitle;
       product.price = updatedPrice;
       product.description = updatedDesc;
       product.imageUrl = updatedImageUrl;
-      return product.save();
+      return product.save().then(result => {
+        console.log('UPDATED PRODUCT!');
+        res.redirect('/admin/products');
+      });
     })
-    .then(result => {
-      console.log('UPDATED PRODUCT!');
-      res.redirect('/admin/products');
-    })
-    .catch(err => console.log(err));
+    .catch(err => {
+      next(err);
+    });
 };
 
 exports.getProducts = (req, res, next) => {
-  Product.find()
+  Product.find({ userId: req.user._id })
     // .select('title price -_id')
     // .populate('userId', 'name')
     .then(products => {
@@ -89,15 +145,19 @@ exports.getProducts = (req, res, next) => {
         isAuthenticated: req.session.isLoggedIn
       });
     })
-    .catch(err => console.log(err));
+    .catch(err => {
+      next(err);
+    });
 };
 
 exports.postDeleteProduct = (req, res, next) => {
   const prodId = req.body.productId;
-  Product.findByIdAndRemove(prodId)
+  Product.deleteOne({ _id: prodId, userId: req.user._id })
     .then(() => {
       console.log('DESTROYED PRODUCT');
       res.redirect('/admin/products');
     })
-    .catch(err => console.log(err));
+    .catch(err => {
+      next(err);
+    });
 };
