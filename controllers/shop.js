@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PDFDocument = require('pdfkit');
+const stripe = require('stripe')('sk_test_ytmjabqINZnxTCSfxDGr0i3A');
 
 const Product = require('../models/product');
 const Order = require('../models/order');
@@ -17,7 +18,7 @@ exports.getProducts = (req, res, next) => {
       });
     })
     .catch(err => {
-      console.log(err);
+      next(err);
     });
 };
 
@@ -32,7 +33,9 @@ exports.getProduct = (req, res, next) => {
         isAuthenticated: req.session.isLoggedIn
       });
     })
-    .catch(err => console.log(err));
+    .catch(err => {
+      next(err);
+    });
 };
 
 exports.getIndex = (req, res, next) => {
@@ -46,7 +49,7 @@ exports.getIndex = (req, res, next) => {
       });
     })
     .catch(err => {
-      console.log(err);
+      next(err);
     });
 };
 
@@ -63,7 +66,9 @@ exports.getCart = (req, res, next) => {
         isAuthenticated: req.session.isLoggedIn
       });
     })
-    .catch(err => console.log(err));
+    .catch(err => {
+      next(err);
+    });
 };
 
 exports.postCart = (req, res, next) => {
@@ -73,8 +78,10 @@ exports.postCart = (req, res, next) => {
       return req.user.addToCart(product);
     })
     .then(result => {
-      console.log(result);
       res.redirect('/cart');
+    })
+    .catch(err => {
+      next(err);
     });
 };
 
@@ -85,10 +92,35 @@ exports.postCartDeleteProduct = (req, res, next) => {
     .then(result => {
       res.redirect('/cart');
     })
-    .catch(err => console.log(err));
+    .catch(err => {
+      next(err);
+    });
+};
+
+exports.getCheckout = (req, res, next) => {
+  req.user
+    .populate('cart.items.productId')
+    .execPopulate()
+    .then(user => {
+      const products = user.cart.items;
+      res.render('shop/checkout', {
+        path: '/checkout',
+        pageTitle: 'Checkout',
+        products: products,
+        isAuthenticated: req.session.isLoggedIn,
+        totalSum: user.cart.items.reduce(
+          (acc, i) => acc + i.productId.price * i.quantity,
+          0
+        )
+      });
+    })
+    .catch(err => {
+      next(err);
+    });
 };
 
 exports.postOrder = (req, res, next) => {
+  const { stripeToken } = req.body;
   req.user
     .populate('cart.items.productId')
     .execPopulate()
@@ -103,15 +135,30 @@ exports.postOrder = (req, res, next) => {
         },
         products: products
       });
-      return order.save();
+      return order.save().then(result => {
+        const amount =
+          user.cart.items.reduce(
+            (acc, i) => acc + i.productId.price * i.quantity,
+            0
+          ) * 100;
+        const charge = stripe.charges.create({
+          amount,
+          currency: 'usd',
+          description: 'Demo order',
+          source: stripeToken,
+          metadata: { order_id: result._id.toString() }
+        });
+      });
     })
-    .then(result => {
+    .then(() => {
       return req.user.clearCart();
     })
     .then(() => {
       res.redirect('/orders');
     })
-    .catch(err => console.log(err));
+    .catch(err => {
+      next(err);
+    });
 };
 
 exports.getOrders = (req, res, next) => {
@@ -124,7 +171,9 @@ exports.getOrders = (req, res, next) => {
         isAuthenticated: req.session.isLoggedIn
       });
     })
-    .catch(err => console.log(err));
+    .catch(err => {
+      next(err);
+    });
 };
 
 exports.getInvoice = (req, res, next) => {
